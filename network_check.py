@@ -1,5 +1,5 @@
 
-
+import time
 import argparse
 import csv
 import platform
@@ -149,9 +149,10 @@ def export_to_csv(results):
         print(f"\nERROR exporting report: {error}")
 
 
+
 def main():
     parser = argparse.ArgumentParser(
-        description="Network Troubleshooting Toolkit - Multi-host Ping Monitor"
+        description="Network Troubleshooting Toolkit - Continuous Monitor"
     )
 
     parser.add_argument(
@@ -168,61 +169,99 @@ def main():
         help="Number of ping requests per host (default: 5)"
     )
 
+    parser.add_argument(
+        "--interval",
+        type=int,
+        default=10,
+        help="Seconds to wait between monitoring cycles (default: 10)"
+    )
+
     args = parser.parse_args()
 
     if args.count < 1:
         parser.error("Ping count must be at least 1.")
 
+    if args.interval < 1:
+        parser.error("Monitoring interval must be at least 1 second.")
+
     print("=" * 72)
-    print("NETWORK TROUBLESHOOTING TOOLKIT - VERSION 4")
+    print("NETWORK TROUBLESHOOTING TOOLKIT - VERSION 5")
     print("=" * 72)
-    print(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"Hosts: {', '.join(args.hosts)}")
     print(f"Ping requests per host: {args.count}")
+    print(f"Monitoring interval: {args.interval} seconds")
+    print("Press Ctrl+C to stop monitoring.")
 
-    results = []
+    cycle = 0
 
-    for host in args.hosts:
-        results.append(check_host(host, args.count))
+    try:
+        while True:
+            cycle += 1
+            results = []
 
-    print("\n" + "=" * 100)
-    print("NETWORK MONITORING SUMMARY")
-    print("=" * 100)
+            print(f"\n{'=' * 72}")
+            print(
+                f"MONITORING CYCLE {cycle} | "
+                f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            )
+            print("=" * 72)
 
-    print(
-        f"{'HOST':<22}"
-        f"{'STATUS':<10}"
-        f"{'LOSS %':<12}"
-        f"{'MIN MS':<12}"
-        f"{'AVG MS':<12}"
-        f"{'MAX MS':<12}"
-    )
+            for host in args.hosts:
+                results.append(check_host(host, args.count))
 
-    print("-" * 80)
+            print("\nNETWORK MONITORING SUMMARY")
+            print("-" * 80)
+            print(
+                f"{'HOST':<22}"
+                f"{'STATUS':<10}"
+                f"{'LOSS %':<12}"
+                f"{'MIN MS':<12}"
+                f"{'AVG MS':<12}"
+                f"{'MAX MS':<12}"
+            )
+            print("-" * 80)
 
-    for item in results:
-        min_value = f"{item['min']:.2f}" if item["min"] is not None else "N/A"
-        avg_value = f"{item['avg']:.2f}" if item["avg"] is not None else "N/A"
-        max_value = f"{item['max']:.2f}" if item["max"] is not None else "N/A"
+            for item in results:
+                min_value = (
+                    f"{item['min']:.2f}"
+                    if item["min"] is not None else "N/A"
+                )
+                avg_value = (
+                    f"{item['avg']:.2f}"
+                    if item["avg"] is not None else "N/A"
+                )
+                max_value = (
+                    f"{item['max']:.2f}"
+                    if item["max"] is not None else "N/A"
+                )
 
-        print(
-            f"{item['host']:<22}"
-            f"{item['status']:<10}"
-            f"{item['loss']:<12.2f}"
-            f"{min_value:<12}"
-            f"{avg_value:<12}"
-            f"{max_value:<12}"
-        )
+                print(
+                    f"{item['host']:<22}"
+                    f"{item['status']:<10}"
+                    f"{item['loss']:<12.2f}"
+                    f"{min_value:<12}"
+                    f"{avg_value:<12}"
+                    f"{max_value:<12}"
+                )
 
-    responding = sum(item["status"] == "UP" for item in results)
+            responding = sum(
+                item["status"] == "UP" for item in results
+            )
 
-    print("-" * 80)
-    print(f"Total hosts checked: {len(results)}")
-    print(f"Hosts responding: {responding}")
-    print(f"Hosts not responding: {len(results) - responding}")
+            print("-" * 80)
+            print(f"Hosts checked: {len(results)}")
+            print(f"Hosts responding: {responding}")
+            print(f"Hosts not responding: {len(results) - responding}")
 
-    export_to_csv(results)
+            export_to_csv(results)
 
-    print("\nMonitoring completed.")
+            print(
+                f"\nNext cycle in {args.interval} seconds..."
+            )
+            time.sleep(args.interval)
+
+    except KeyboardInterrupt:
+        print(f"\nMonitoring stopped. Total cycles completed: {cycle}")
 
 
 if __name__ == "__main__":
