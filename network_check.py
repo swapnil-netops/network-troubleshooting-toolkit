@@ -152,7 +152,7 @@ def export_to_csv(results):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Network Troubleshooting Toolkit - Continuous Monitor"
+        description="Network Troubleshooting Toolkit - V6 Alert-Based Monitor"
     )
 
     parser.add_argument(
@@ -176,6 +176,20 @@ def main():
         help="Seconds to wait between monitoring cycles (default: 10)"
     )
 
+    parser.add_argument(
+        "--max-loss",
+        type=float,
+        default=10.0,
+        help="Alert when packet loss exceeds this percentage (default: 10)"
+    )
+
+    parser.add_argument(
+        "--max-latency",
+        type=float,
+        default=100.0,
+        help="Alert when average latency exceeds this value in ms (default: 100)"
+    )
+
     args = parser.parse_args()
 
     if args.count < 1:
@@ -185,7 +199,7 @@ def main():
         parser.error("Monitoring interval must be at least 1 second.")
 
     print("=" * 72)
-    print("NETWORK TROUBLESHOOTING TOOLKIT - VERSION 5")
+    print("NETWORK TROUBLESHOOTING TOOLKIT - VERSION 6")
     print("=" * 72)
     print(f"Hosts: {', '.join(args.hosts)}")
     print(f"Ping requests per host: {args.count}")
@@ -193,6 +207,7 @@ def main():
     print("Press Ctrl+C to stop monitoring.")
 
     cycle = 0
+    previous_status = {}
 
     try:
         while True:
@@ -208,7 +223,24 @@ def main():
 
             for host in args.hosts:
                 results.append(check_host(host, args.count))
+            print("\nSTATUS CHANGE CHECK")
+            print("-" * 40)
 
+            for item in results:
+                host = item["host"]
+                current_status = item["status"]
+
+                if host in previous_status:
+                    old_status = previous_status[host]
+
+                    if old_status == "UP" and current_status == "DOWN":
+                        print(f"HOST DOWN ALERT: {host} is not responding!")
+
+                    elif old_status == "DOWN" and current_status == "UP":
+                        print(f"HOST RECOVERED: {host} is responding again.")
+
+                previous_status[host] = current_status
+            
             print("\nNETWORK MONITORING SUMMARY")
             print("-" * 80)
             print(
@@ -253,6 +285,26 @@ def main():
             print(f"Hosts responding: {responding}")
             print(f"Hosts not responding: {len(results) - responding}")
 
+            print("\nALERT CHECK")
+            print("-" * 40)
+
+            for item in results:
+                if item["loss"] > args.max_loss:
+                    print(
+                        f"PACKET LOSS ALERT: {item['host']} "
+                        f"has {item['loss']:.2f}% packet loss "
+                        f"(threshold: {args.max_loss:.2f}%)"
+                    )
+
+                if (
+                    item["avg"] is not None
+                    and item["avg"] > args.max_latency
+                ):
+                    print(
+                        f"HIGH LATENCY ALERT: {item['host']} "
+                        f"has {item['avg']:.2f} ms average latency "
+                        f"(threshold: {args.max_latency:.2f} ms)"
+                    )
             export_to_csv(results)
 
             print(
